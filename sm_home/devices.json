@@ -1,0 +1,104 @@
+[
+  {
+    "action":"mqtt",
+    "command": "включи",
+    "items": [
+      {
+        "word": "лампа",
+        "topic": "cmnd/u_01/cmnd/Power"
+      },
+      {
+        "word": "ночник",
+        "topic": "cmnd/u_02/cmnd/Power"
+      }
+    ],
+    "parameters": [
+      {
+        "ALL": "1"
+      }
+    ]
+  },
+  {
+    "action":"mqtt",
+    "command": "выключи",
+    "items": [
+      {
+        "word": "лампа",
+        "topic": "cmnd/u_01/cmnd/Power"
+      },
+      {
+        "word": "ночник",
+        "topic": "cmnd/u_02/cmnd/Power"
+      }
+    ],
+    "parameters": [
+      {
+        "ALL": "0"
+      }
+    ]
+  },
+  {
+    "action":"mqtt",
+    "command": "сделай",
+    "items": [
+      {
+        "word": "ночник",
+        "topic": "cmnd/u_02/cmnd/Color"
+      }
+    ],
+    "parameters": [
+      {
+        "word": "красный",
+        "data": "#ff0000"
+      },
+      {
+        "word": "синий",
+        "data": "#0000ff"
+      },
+      {
+        "word": "зеленый",
+        "data": "#008000"
+      },
+      {
+        "word": "фиолетовый",
+        "data": "#af0080"
+      },
+      {
+        "word": "голубой",
+        "data": "#00CED1"
+      },
+      {
+        "word": "оранжевый",
+        "data": "#ffa500"
+      },
+      {
+        "word": "желтый",
+        "data": "#ffff00"
+      },
+      {
+        "word": "лайм",
+        "data": "#00ff00"
+      },
+      {
+        "word": "розовый",
+        "data": "#FF1493"
+      },
+      {
+        "word": "персик",
+        "data": "#A0522D"
+      },
+      {
+        "word": "индиго",
+        "data": "#4B0082"
+      },
+      {
+        "word": "фуксия",
+        "data": "#DA70D6"
+      },
+      {
+        "word": "лиловый",
+        "data": "#CB6083"
+      }
+    ]
+  }
+]
