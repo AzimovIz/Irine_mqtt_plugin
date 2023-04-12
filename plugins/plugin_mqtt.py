@@ -24,9 +24,34 @@ class Sentence:
 
     def _check_inner(self, key_word, word_array):  # проверка вхождения слова в массив слов
         normal_key = self.analyzer.parse(key_word)[0].normal_form  # нормализация слова
-        normal_words = [self.analyzer.parse(word)[0].normal_form for word in word_array]  # нормализация массива слов
+        normal_words = list([self.analyzer.parse(word)[0].normal_form for word in word_array])  # нормализация массива слов
 
         return bool(normal_key in normal_words)
+
+    def _get_answer_word(self, raw_word, pre_word=None):
+        # преобразует слова для ответа
+        # отвечает от женского имени в прошедшем времени
+        # для прилагательных передается дополнительное слово (pre_word) к которому относится это прилагательное
+        word = self.analyzer.parse(raw_word)[0]
+        part_of_speech = str(word.tag).split(",")[0]
+        if "INFN" in part_of_speech or "VERB" in part_of_speech:  # глагол
+            ans = word.inflect({"perf", "femn", "sing", "past", "indc"})
+
+        elif "NOUN" in part_of_speech:  # существительное
+            if (ans := word.inflect({"inan", "sing", "accs"})) is None:
+                word = self.analyzer.parse(word=raw_word)
+                word = list(filter(lambda x: "inan" in str(x.tag), word))[0]
+                ans = word.inflect({"inan", "sing", "accs"})
+
+        elif "ADJF" in part_of_speech:  # прилогательное
+            raw_tags = str(self.analyzer.parse(pre_word)[0].tag)
+            tags = raw_tags.replace(" ", ",").replace("accs", "ablt").replace("nomn", "ablt").split(",")[2:]
+            ans = word.inflect({tag for tag in tags})
+
+        else:  # если слово не определяется - пропускаем его
+            ans = ""
+
+        return ans.word
 
     def _get_word_keys(self, command):  # "парсинг" команды/топика/данных для топика
         rez = []
@@ -36,26 +61,54 @@ class Sentence:
                     command["command"],
                     item["word"],
                 ]
-
-                if not "ALL" in parameter:
-                    rez_n.append(parameter["word"])
-
+                answer = [
+                    self._get_answer_word(rez_n[0]),
+                    self._get_answer_word(rez_n[1])
+                ]
                 if "addition" in item:
-                    rez_n.append(item["addition"])
+                    rez_n.append(item["addition"].split(" ")[-1])
+                    answer.append(item["addition"])
+
+                if "ALL" not in parameter:
+                    rez_n.append(parameter["word"])
+                    answer.append(self._get_answer_word(rez_n[-1], answer[1]))
 
                 rez.append({
                     "words": rez_n,
                     "topic": item["topic"],
-                    "data": parameter["data"] if not "ALL" in parameter else parameter["ALL"]
+                    "data": parameter["data"] if not "ALL" in parameter else parameter["ALL"],
+                    "answer": " ".join([word for word in answer])
                 })
 
         return rez
+
+    def create_trigger_word(self, raw_word):
+        # склоняет триггер-слово команды в повелительное наклонение для вызова ассистента
+        # включить > включи / открыть > открой
+        word = self.analyzer.parse(raw_word)[0]
+        part_of_speech = str(word.tag).split(",")[0]
+        if "INFN" not in part_of_speech or "VERB" not in part_of_speech:
+            word = self.analyzer.parse(raw_word)
+            word = list(filter(lambda x: "INFN" in str(x.tag) or "VERB" in str(x.tag), word))[0]
+
+        return word.inflect({"perf", "sing", "impr", "excl"}).word
+
+    def get_trigger_infn(self, raw_word):
+        # возвращает инфинитив от триггер-слова команды
+        # включи > включить / открой > открыть
+        word = self.analyzer.parse(raw_word)[0]
+        part_of_speech = str(word.tag).split(",")[0]
+        if "INFN" not in part_of_speech or "VERB" not in part_of_speech:
+            word = self.analyzer.parse(raw_word)
+            word = list(filter(lambda x: "INFN" in str(x.tag) or "VERB" in str(x.tag), word))[0]
+
+        return word.inflect({"INFN","perf","tran"}).word
 
     def get_command_words(self):  # возвращает слова действия включи/выключи/и т.д. из файла с действиями/устройствами
         if self.actions_words is None:
             self.actions_words = []
             for command in self.commands:
-                self.actions_words.append(command["command"])
+                self.actions_words.append(self.create_trigger_word(command["command"]))
 
         return self.actions_words
 
@@ -69,6 +122,7 @@ class Sentence:
 
     def get_command(self, raw_text: str):  # находит и возвращает команду все слова которой есть в переданной фразе
         word_list = raw_text.split(" ")
+        word_list[0] = self.get_trigger_infn(word_list[0])
         for command in self.get_commands_list():
             if all([self._check_inner(w, word_list) for w in command["words"]]):
                 return command
@@ -125,9 +179,9 @@ def check_connection(func):  # при обрыве подключения - пе
 def mqtt_find(core: VACore, phrase: str, command: str = None):
     if command is not None:
         phrase = command + " " + phrase
-    command = core.mqtt_sentence.get_command(phrase)
-    if command:
+
+    if command := core.mqtt_sentence.get_command(phrase):
         core.mqtt_client.publish(command["topic"], command["data"])
-        core.say("Готово")
+        core.say(command["answer"])
     else:
         core.say("Не могу выполнить команду")
